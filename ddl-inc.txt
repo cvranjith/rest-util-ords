@@ -1,0 +1,61 @@
+
+create table iftm_rest_param (param_name varchar2(100) primary key, param_val varchar2(200));
+create or replace directory DEBUG_PATH as '/tmp';
+
+
+create table
+iftm_rest_msg_handler
+(
+msg_code        varchar2(100) primary key,
+resp_msg_code   varchar2(100),
+query_or_proc   varchar2(1),
+stmt            varchar2(4000),
+resp_json_type  varchar2(1)
+);
+
+create table iftb_rest_msg_log
+(
+id           varchar2(100),
+msg_code     varchar2(100),
+msg_id       varchar2(100),
+req          varchar2(4000),
+resp         varchar2(4000),
+req_ts       timestamp,
+resp_ts      timestamp,
+err          varchar2(4000)
+);
+
+BEGIN
+  ORDS.define_module(
+    p_module_name    => 'connectorService',
+    p_base_path      => '/',
+    p_items_per_page => 0);
+  
+  ORDS.define_template(
+   p_module_name    => 'connectorService',
+   p_pattern        => 'connectorService/');
+
+  ORDS.define_handler(
+    p_module_name    => 'connectorService',
+    p_pattern        => 'connectorService/',
+    p_method         => 'POST',
+    p_source_type    => ORDS.source_type_plsql,
+    p_source         => 'BEGIN RESTUTIL.PKG_REST_UTILS.pr_process(p_msg => :body); END;',
+    p_items_per_page => 0);
+  COMMIT;
+END;
+/
+
+
+
+insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
+values ('fetchCustomer', 'fetchCustomerResponse', 'Q', 'select * from fcubs143.sttm_customer where customer_no = ''$customerNo$''', 'O');
+
+insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
+values ('fetchCustomerResponse', 'fetchCustomerResponse1', 'P', 'insert into tb_test_cust(customer_no,customer_name1) values (''$CUSTOMER_NO$'',''$CUSTOMER_NAME1$'');', null);
+
+
+insert into iftm_rest_param values ('DEBUG_MODE','Y');
+insert into iftm_rest_param values ('DEBUG_PATH','DEBUG_PATH');
+
+

@@ -16,6 +16,7 @@ type ty_resp is table of rec_nvp index by binary_integer;
 tb_resp ty_resp;
 dbg_mode boolean :=false;
 dbg_file utl_file.file_type;
+rec_array json_array_t;
 function fn_rest_param(p_param_name in varchar2) return varchar2 result_cache
 is
 l_val iftm_rest_param.param_val%type;
@@ -99,6 +100,7 @@ begin
   tb_req.delete;
   tb_resp.delete;
   r_id :=null;
+  rec_array := null;
 end;
 function fn_get_handler(p_msg_code in varchar2) return iftm_rest_msg_handler%rowtype result_cache
 is
@@ -118,9 +120,14 @@ is
   l_cur           integer default dbms_sql.open_cursor;
   l_val           varchar2(4000);
   l_status        integer;
+  l_tb_rec        ty_resp;
+  o1               json_object_t;
+  o               json_object_t;
 begin
   dbms_sql.parse(  l_cur,  p_stmt, dbms_sql.native );
   dbms_sql.describe_columns( l_cur, l_cols, l_desc_tab );
+  o1 := new json_object_t;
+  rec_array := new json_array_t;
   if l_desc_tab.count > 0
   then
     for j in l_desc_tab.first .. l_desc_tab.last
@@ -130,14 +137,22 @@ begin
     l_status := dbms_sql.execute(l_cur);
     loop
       exit when (dbms_sql.fetch_rows(l_cur) <= 0);
+      o := o1;
       for j in 1 .. l_desc_tab.count
       loop
         dbms_sql.column_value( l_cur, j, l_val );
-        pr_resp_nvp(l_desc_tab(j).col_name,l_val);
+        if p_resp_json_type = 'O'
+        then
+           pr_resp_nvp(l_desc_tab(j).col_name,l_val);
+        else
+           o.put(l_desc_tab(j).col_name, l_val);
+        end if;
       end loop;
       if p_resp_json_type = 'O'
       then
          exit;
+      else
+         rec_array.append(o);
       end if;
     end loop;
     dbms_sql.close_cursor(l_cur);
@@ -173,7 +188,7 @@ begin
     pr_run_proc(l_handler.stmt);
   end if;
 end;
-function fn_response return varchar2
+function fn_response (p_resp_json_type in varchar2 := null) return varchar2
 is
   o json_object_t;
 begin
@@ -184,6 +199,10 @@ begin
     loop
       o.put(tb_resp(i).key, tb_resp(i).val);
     end loop;
+  end if;
+  if p_resp_json_type = 'A'
+  then
+    o.put('records',rec_array);
   end if;
   return o.to_string();
 end;
@@ -201,7 +220,9 @@ begin
     r.req_ts := systimestamp;
     r.id := r_id;
     r.req := substr(p_msg,1,4000);
+    pr_resp_nvp('msgProducer',fn_rest_param('MSG_PRODUCER'));
     pr_resp_nvp('logId',r_id);
+    
     log('Going to Parse');
     pr_parse(p_msg);
     log('Parse done');
@@ -213,7 +234,7 @@ begin
     pr_run_stmt(r.msg_code);
     log('Done statement execution...');
     pr_resp_nvp('status','success');
-    l_resp := fn_response;
+    l_resp := fn_response(fn_get_handler(r.msg_code).resp_json_type);
     r.resp := substr(l_resp,1,4000);
     htp.p(l_resp);
     log('r.resp = '||r.resp);    
@@ -252,7 +273,6 @@ begin
   dbg_mode := fn_rest_param('DEBUG_MODE') = 'Y';
 end;
 /
-
 
 create or replace function reqval(p_tag in varchar2) return varchar2
 is

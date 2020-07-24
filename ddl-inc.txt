@@ -54,8 +54,11 @@ values ('fetchCustomer', 'fetchCustomerResponse', 'Q', 'select * from fcubs143.s
 insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
 values ('fetchCustomerResponse', 'fetchCustomerResponse1', 'P', 'insert into tb_test_cust(customer_no,customer_name1) values (''$CUSTOMER_NO$'',''$CUSTOMER_NAME1$'');', null);
 
+insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
+values ('test', 'testResp', 'Q', 'select a.rowid, a.customer_no "custNo", a.* from tb_test_cust a', 'A');
 
 insert into iftm_rest_param values ('DEBUG_MODE','Y');
 insert into iftm_rest_param values ('DEBUG_PATH','DEBUG_PATH');
+insert into iftm_rest_param values ('MSG_PRODUCER','FCUBSCustom');
 
 

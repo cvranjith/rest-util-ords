@@ -3,6 +3,9 @@ is
 procedure pr_process(p_msg in varchar2);
 procedure put_resp(p_key in varchar2, p_val in varchar2);
 function  getReqVal(p_tag in varchar2) return varchar2;
+function  fn_ins_notif(p_notif_msg in varchar2) return varchar2;
+procedure pr_ins_notif(p_notif_msg in varchar2);
+procedure pr_get_notif;
 end;
 /
 
@@ -189,7 +192,7 @@ begin
     run_proc(l_handler.stmt);
   end if;
 end;
-function getResponse (p_resp_json_type in varchar2 := null) return varchar2
+function getResponse (p_resp_json_type in varchar2 := null) return json_object_t
 is
   o json_object_t;
 begin
@@ -205,15 +208,14 @@ begin
   then
     o.put('records',rec_array);
   end if;
-  return o.to_string();
+  return o;
 end;
-procedure pr_process(p_msg in varchar2)
+function process(p_msg in varchar2) return json_object_t
 is
   r iftb_rest_msg_log%rowtype;
-  l_resp varchar2(32767);
+  l_resp json_object_t;
 begin
   begin
-    owa_util.mime_header('application/json',true);
     cleanup();
     r_id := sys_guid();
     log('starting pr_process ...');
@@ -228,7 +230,7 @@ begin
     parse(p_msg);
     log('Parse done');
     r.msg_code := tb_req('msgCode');
-    r.msg_id := tb_req('msgId');
+    begin r.msg_id := tb_req('msgId'); exception when no_data_found then null;end;
     put_resp('reqMsgCode',r.msg_code);
     put_resp('msgId',r.msg_id);
     log('Going Run Statement for msg code '||r.msg_code);
@@ -236,8 +238,7 @@ begin
     log('Done statement execution...');
     put_resp('status','success');
     l_resp := getResponse(getHandler(r.msg_code).resp_json_type);
-    r.resp := substr(l_resp,1,4000);
-    htp.p(l_resp);
+    r.resp := substr(l_resp.to_string,1,4000);
     log('r.resp = '||r.resp);    
   exception
     when others
@@ -247,8 +248,7 @@ begin
       put_resp('err',r.err);
       put_resp('status','error');
       l_resp := getResponse();
-      r.resp := substr(l_resp,1,4000);
-      htp.p(l_resp);
+      r.resp := substr(l_resp.to_string,1,4000);
       rollback;
   end;
   r.resp_ts := systimestamp;
@@ -256,6 +256,76 @@ begin
   commit;
   cleanup();
   log('all done');
+  return l_resp;
+end;
+procedure print_resp(p_resp in varchar2)
+is
+l_resp varchar2(32767) := p_resp;
+begin
+  owa_util.mime_header('application/json',true);
+  while l_resp is not null loop
+     htp.prn(substr(l_resp,1,4000));
+     l_resp := substr(l_resp,4001);
+  end loop;
+end;
+procedure pr_process(p_msg in varchar2)
+is
+begin
+  print_resp(process(p_msg).to_string);
+end;
+function fn_ins_notif(p_notif_msg in varchar2) return varchar2
+is
+l_id varchar2(200);
+o json_object_t;
+l_msg varchar2(4000);
+begin
+  log('Came to parse');
+  o := json_object_t.parse(p_notif_msg);
+  begin
+    l_id := rtrim(ltrim(o.get('msgId').to_string(),'"'),'"');
+  exception
+    when others
+    then
+      l_id := sys_guid();
+      o.put('msgId',l_id);
+  end;
+  l_msg := o.to_string();
+  insert into iftb_notif_log(msg_id,notif_msg,msg_stat,ins_ts) values
+  (l_id,l_msg,'N',systimestamp);
+  cleanup();
+  return l_id;
+end;
+procedure pr_ins_notif(p_notif_msg in varchar2)
+is
+id varchar2(32767);
+begin
+  id := fn_ins_notif(p_notif_msg);
+end;
+procedure pr_get_notif is
+  l_num number := 0;
+  a json_array_t;
+begin
+  a := new json_array_t;
+  for i in (select rowid rid, notif_msg from iftb_notif_log where msg_stat = 'N')
+  loop
+    begin
+      insert into iftb_notif_log_dedupe values (i.rid);
+      commit;
+    exception
+      when dup_val_on_index
+      then
+        continue;
+   end;
+   a.append(process(i.notif_msg));
+   update iftb_notif_log set msg_stat = 'P',notif_ts=systimestamp where rowid = i.rid;
+   commit;
+   l_num := l_num +1;
+   if l_num >= 10
+   then
+     exit;
+   end if;
+  end loop;
+  print_resp(a.to_string);
 end;
 begin
   dbg_mode := getParam('DEBUG_MODE') = 'Y';

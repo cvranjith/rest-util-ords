@@ -24,20 +24,31 @@ req_ts       timestamp,
 resp_ts      timestamp,
 err          varchar2(4000)
 );
+create table iftb_notif_log_dedupe (rid rowid primary key);
+create table iftb_notif_log
+(
+msg_id       varchar2(100),
+notif_msg    varchar2(4000),
+msg_stat     varchar2(1),
+ins_ts       timestamp,
+notif_ts     timestamp
+);
+
+create index ind_iftb_notif_log on iftb_notif_log(msg_stat);
 
 BEGIN
   ORDS.define_module(
     p_module_name    => 'connectorService',
-    p_base_path      => '/',
+    p_base_path      => '/oa/',
     p_items_per_page => 0);
   
   ORDS.define_template(
-   p_module_name    => 'connectorService',
-   p_pattern        => 'connectorService/');
+   p_module_name    => 'connectorService1',
+   p_pattern        => 'connectorService1/');
 
   ORDS.define_handler(
-    p_module_name    => 'connectorService',
-    p_pattern        => 'connectorService/',
+    p_module_name    => 'connectorService1',
+    p_pattern        => 'connectorService1/',
     p_method         => 'POST',
     p_source_type    => ORDS.source_type_plsql,
     p_source         => 'BEGIN RESTUTIL.PKG_REST_UTILS.pr_process(p_msg => :body); END;',
@@ -45,17 +56,48 @@ BEGIN
   COMMIT;
 END;
 /
-
-
+BEGIN
+  ORDS.define_template(
+   p_module_name    => 'connectorService1',
+   p_pattern        => 'getNotif');
+  ORDS.define_handler(
+    p_module_name    => 'connectorService1',
+    p_pattern        => 'getNotif',
+    p_method         => 'GET',
+    p_source_type    => ORDS.source_type_plsql,
+    p_source         => 'BEGIN RESTUTIL.PKG_REST_UTILS.pr_get_notif; END;',
+    p_items_per_page => 0);
+  COMMIT;
+END;
+/
+begin
+ords.create_privilege_mapping(
+p_privilege_name => 'connector.service',
+p_pattern => '/oa/*');
+commit;
+end;
 
 insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
-values ('fetchCustomer', 'fetchCustomerResponse', 'Q', 'select * from fcubs143.sttm_customer where customer_no = ''$customerNo$''', 'O');
+values ('fetchCustomer', 'fetchCustomerResponse', 'Q', 'select customer_no, customer_name1 "customerName", address_line1, address_line2 from fcubs143.sttm_customer where customer_no = ''$customerNo$''', 'O');
 
 insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
 values ('fetchCustomerResponse', 'fetchCustomerResponse1', 'P', 'insert into tb_test_cust(customer_no,customer_name1) values (''$CUSTOMER_NO$'',''$CUSTOMER_NAME1$'');', null);
 
 insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
 values ('test', 'testResp', 'Q', 'select a.rowid, a.customer_no "custNo", a.* from tb_test_cust a', 'A');
+
+insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
+values ('resetNotif', 'resetNotif', 'P', 'delete iftb_notif_log_dedupe;
+update iftb_notif_log set msg_stat = ''N'';', null);
+
+insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
+values ('publishCust', 'publishCustResp', 'Q', 'select customer_no "CustomerNo", 
+       nvl(customer_name1,short_name) "customerName", 
+       address_line1 "Address1", 
+       address_line3 "Address3", 
+       address_line4 "Address4"
+from   fcubs143.sttm_customer 
+where customer_no = ''$customerNo$''', 'O');
 
 insert into iftm_rest_param values ('DEBUG_MODE','Y');
 insert into iftm_rest_param values ('DEBUG_PATH','DEBUG_PATH');

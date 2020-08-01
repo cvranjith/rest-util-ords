@@ -88,14 +88,16 @@ values ('test', 'testResp', 'Q', 'select a.rowid, a.customer_no "custNo", a.* fr
 
 insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
 values ('resetNotif', 'resetNotif', 'P', 'delete iftb_notif_log_dedupe;
-update iftb_notif_log set msg_stat = ''N'';', null);
+put_resp(''numLogDedupeDel'',sql%rowcount);
+update iftb_notif_log set msg_stat = ''N'';
+put_resp(''numLogUpd'',sql%rowcount);', null);
 
 insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
-values ('publishCust', 'publishCustResp', 'Q', 'select customer_no "CustomerNo", 
+values ('notifCust', 'publishCust', 'Q', 'select customer_no "customerNo", 
        nvl(customer_name1,short_name) "customerName", 
-       address_line1 "Address1", 
-       address_line3 "Address3", 
-       address_line4 "Address4"
+       address_line1 "address1", 
+       address_line3 "address3", 
+       address_line4 "address4"
 from   fcubs143.sttm_customer 
 where customer_no = ''$customerNo$''', 'O');
 

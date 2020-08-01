@@ -116,6 +116,10 @@ begin
   from   iftm_rest_msg_handler
   where	 msg_code = p_msg_code;
   return l_handler;
+exception
+  when no_data_found
+  then
+    raise_err('Unknown msgCode '||p_msg_code);
 end;
 procedure run_query(p_stmt in varchar2,p_resp_json_type in varchar2)
 is
@@ -229,7 +233,7 @@ begin
     log('Going to Parse');
     parse(p_msg);
     log('Parse done');
-    r.msg_code := tb_req('msgCode');
+    begin r.msg_code := tb_req('msgCode'); exception when no_data_found then raise_err('msgCode tag not present');end;
     begin r.msg_id := tb_req('msgId'); exception when no_data_found then null;end;
     put_resp('reqMsgCode',r.msg_code);
     put_resp('msgId',r.msg_id);
@@ -243,10 +247,13 @@ begin
   exception
     when others
     then
-      r.err := substr(sqlerrm||chr(10)||dbms_utility.format_error_backtrace,1,4000);
-      log(r.err);
+      log(sqlerrm);
+      log(dbms_utility.format_error_backtrace);
+      r.err := sqlerrm;
+      if instr(r.err,':') > 0 then r.err := ltrim(substr(r.err,instr(r.err,':')+1)); end if;
       put_resp('err',r.err);
       put_resp('status','error');
+      r.err := substr(sqlerrm||chr(10)||dbms_utility.format_error_backtrace,1,4000);
       l_resp := getResponse();
       r.resp := substr(l_resp.to_string,1,4000);
       rollback;
@@ -302,7 +309,6 @@ begin
   id := fn_ins_notif(p_notif_msg);
 end;
 procedure pr_get_notif is
-  l_num number := 0;
   a json_array_t;
 begin
   a := new json_array_t;
@@ -319,11 +325,7 @@ begin
    a.append(process(i.notif_msg));
    update iftb_notif_log set msg_stat = 'P',notif_ts=systimestamp where rowid = i.rid;
    commit;
-   l_num := l_num +1;
-   if l_num >= 10
-   then
-     exit;
-   end if;
+   exit when length(a.to_string)> 10000;
   end loop;
   print_resp(a.to_string);
 end;

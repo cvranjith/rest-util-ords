@@ -51,7 +51,7 @@ BEGIN
     p_pattern        => 'connectorService',
     p_method         => 'POST',
     p_source_type    => ORDS.source_type_plsql,
-    p_source         => 'BEGIN RESTUTIL.PKG_REST_UTILS.pr_process(p_msg => :body); END;',
+    p_source         => 'BEGIN RESTUTIL.PKG_REST_UTILS.pr_process(p_msg => :body_text); END;',
     p_items_per_page => 0);
   COMMIT;
 END;

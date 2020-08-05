@@ -43,12 +43,12 @@ BEGIN
     p_items_per_page => 0);
   
   ORDS.define_template(
-   p_module_name    => 'connectorService1',
-   p_pattern        => 'connectorService1/');
+   p_module_name    => 'connectorService',
+   p_pattern        => 'connectorService');
 
   ORDS.define_handler(
-    p_module_name    => 'connectorService1',
-    p_pattern        => 'connectorService1/',
+    p_module_name    => 'connectorService',
+    p_pattern        => 'connectorService',
     p_method         => 'POST',
     p_source_type    => ORDS.source_type_plsql,
     p_source         => 'BEGIN RESTUTIL.PKG_REST_UTILS.pr_process(p_msg => :body); END;',
@@ -58,10 +58,10 @@ END;
 /
 BEGIN
   ORDS.define_template(
-   p_module_name    => 'connectorService1',
+   p_module_name    => 'connectorService',
    p_pattern        => 'getNotif');
   ORDS.define_handler(
-    p_module_name    => 'connectorService1',
+    p_module_name    => 'connectorService',
     p_pattern        => 'getNotif',
     p_method         => 'GET',
     p_source_type    => ORDS.source_type_plsql,
@@ -70,12 +70,29 @@ BEGIN
   COMMIT;
 END;
 /
+
 begin
+ords.create_privilege(
+p_name => 'connector.service',
+p_role_name => NULL,
+p_label => 'Test OAuth2',
+p_description => 'Test OAuth2');
 ords.create_privilege_mapping(
 p_privilege_name => 'connector.service',
 p_pattern => '/oa/*');
 commit;
 end;
+/
+begin
+oauth.create_client(
+p_name => 'connector.service',
+p_description => 'connector.service',
+p_grant_type => 'client_credentials',
+p_privilege_names => 'connector.service',
+p_support_email => 'connector.service@abc.com');
+commit;
+end;
+/
 
 insert into iftm_rest_msg_handler (MSG_CODE, RESP_MSG_CODE, QUERY_OR_PROC, STMT, RESP_JSON_TYPE)
 values ('fetchCustomer', 'fetchCustomerResponse', 'Q', 'select customer_no, customer_name1 "customerName", address_line1, address_line2 from fcubs143.sttm_customer where customer_no = ''$customerNo$''', 'O');

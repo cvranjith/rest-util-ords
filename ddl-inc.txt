@@ -83,6 +83,7 @@ p_pattern => '/oa/*');
 commit;
 end;
 /
+select client_id,client_secret from user_ords_clients;
 begin
 oauth.create_client(
 p_name => 'connector.service',
